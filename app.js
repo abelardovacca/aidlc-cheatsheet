@@ -575,7 +575,7 @@
   function render() {
     hideTip(); hoverRow = null;
     renderIntro(); renderBoard(); renderTree();
-    document.getElementById("foot").innerHTML = `Generated from <code>awslabs/aidlc-workflows</code> v${esc(D.source.version)} (${esc(D.source.commit)}). Refresh with <code>python3 scripts/extract.py</code>.`;
+    document.getElementById("foot").innerHTML = `Generated from <code>awslabs/aidlc-workflows</code> v${esc(D.source.version)} (${esc(D.source.commit)}). Unofficial community cheatsheet, not affiliated with Amazon Web Services. <a href="https://github.com/abelardovacca/aidlc-cheatsheet">Source</a>`;
     requestAnimationFrame(() => { drawFlows(); drawLinks(); });
   }
   let rz; addEventListener("resize", () => { cancelAnimationFrame(rz); rz = requestAnimationFrame(() => { drawFlows(); drawLinks(); }); });
