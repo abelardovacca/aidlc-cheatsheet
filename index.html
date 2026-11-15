@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI-DLC Cheatsheet</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <div class="wrap top-in">
+    <a class="brand" href="#">AI-DLC <span>Cheatsheet</span></a>
+    <nav class="nav">
+      <a href="#" data-view="lifecycle">Lifecycle</a>
+      <a href="#tree" data-view="lifecycle" class="sub-link">Project tree</a>
+      <a href="#commands" data-view="commands">Commands</a>
+      <span class="ver" id="ver"></span>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap" id="viewLifecycle">
+  <section class="intro">
+    <div class="scopes" id="scopes" role="tablist" aria-label="Scope"></div>
+    <div class="scope-line" id="scopeLine"></div>
+    <div class="profile" id="profile"></div>
+  </section>
+
+  <section id="board" class="board" aria-label="Phases and stages"></section>
+
+  <section id="tree" class="tree-sec" aria-label="Project tree">
+    <h2>Project tree</h2>
+    <p class="lede">Files an intent produces under the selected scope. Click a file to open the stage that writes it.</p>
+    <div class="tree" id="treeView"></div>
+  </section>
+</main>
+
+<main class="wrap" id="viewCommands" hidden>
+  <section class="cmd-intro">
+    <h1>Commands</h1>
+    <p class="lede">Workflow commands are typed in your AI tool's chat. The terminal <code>aidlc</code> command installs AI-DLC, sets up projects and checks health; it does not drive a workflow. Click any command to copy it.</p>
+    <div class="cmd-tools">
+      <label class="search"><input id="cmdSearch" type="search" placeholder="Filter commands" autocomplete="off" spellcheck="false"></label>
+      <div class="seg" role="group" aria-label="Chat prefix">
+        <button type="button" data-prefix="/aidlc">/aidlc</button>
+        <button type="button" data-prefix="$aidlc" title="Codex CLI">$aidlc</button>
+      </div>
+    </div>
+  </section>
+  <div id="cmdBody"></div>
+</main>
+
+<footer class="wrap foot" id="foot"></footer>
+<div class="tip" id="tip" role="tooltip"></div>
+
+<script src="aidlc-data.js"></script>
+<script src="commands.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
