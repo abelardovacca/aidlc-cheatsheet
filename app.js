@@ -31,6 +31,7 @@
     sel: Object.fromEntries((params.get("sel") || "").split(",").filter(v => v.includes(":")).map(v => v.split(":"))),
     toggledDirs: new Set(),
     pins: new Set(),
+    focus: null,
   };
 
   // ---------- helpers ----------
@@ -375,9 +376,9 @@
         <h4 class="sub">Flow</h4>${renderFlow(s)}
       </div>`;
     }
-    return `<article class="stage ${ok ? "" : "skip"} ${open ? "open" : ""}" id="st-${s.slug}" style="${pc(s.phase)}">
+    return `<article class="stage ${ok ? "" : "skip"} ${open ? "open" : ""} ${open && state.focus === s.slug ? "entering" : ""}" id="st-${s.slug}" style="${pc(s.phase)}">
       <button type="button" class="s-head" ${ok ? `data-toggle="${s.slug}" aria-expanded="${open}"` : "disabled"}>
-        <span class="s-num">${s.number}</span><span class="s-name">${esc(s.name)}</span>
+        <span class="s-num"${tip(`Jump here in chat<br><b>/aidlc --stage ${s.number}</b>`)}>${s.number}</span><span class="s-name">${esc(s.name)}</span>
         <span class="s-cond ${s.execution === "ALWAYS" ? "always" : ""}"${tip(condTip)}></span>
       </button>${body}</article>`;
   }
@@ -392,12 +393,62 @@
       cols.push(wide ? "minmax(520px, 2.8fr)" : "minmax(200px, 1fr)");
       const count = state.scope === "all" ? all.length : `${live.length}/${all.length}`;
       return `<div class="phase ${live.length ? "" : "dim"}" style="${pc(p.id)}">
-        <div class="ph-head"${tip(`<b>${esc(p.name)}</b><br>${esc(p.purpose)}`)}><span class="n">0${p.number}</span><h2>${esc(p.name)}</h2><span class="c">${count}</span></div>
+        <div class="ph-head"${tip(`<b>${esc(p.name)}</b><br>${esc(p.purpose)}`)}><span class="n"${tip(`Jump here in chat<br><b>/aidlc --phase ${p.number}</b>`)}>${p.number}</span><h2>${esc(p.name)}</h2><span class="c">${count}</span></div>
         <div class="stages">${shown.map(renderStage).join("")}</div></div>`;
     }).join("");
     const board = document.getElementById("board");
-    board.style.gridTemplateColumns = cols.join(" ");
+    const focus = state.focus;
+    state.focus = null;
+    // widths before the change, so a toggle can animate from them
+    const oldPx = focus ? [...board.querySelectorAll(":scope > .phase")].map(p => p.getBoundingClientRect().width) : null;
     board.innerHTML = html + `<svg class="links" aria-hidden="true"></svg>`;
+    layoutColumns(board, cols, oldPx, focus);
+  }
+
+  // Expanding or collapsing a stage resizes its column. Animate the column widths (as pixel
+  // tracks, which every browser can interpolate) and, at the same time, scroll the board so
+  // the focused column ends up centred.
+  let layoutTimer = null;
+  function layoutColumns(board, cols, oldPx, focus) {
+    const fr = cols.join(" ");
+    clearTimeout(layoutTimer);
+    board.classList.remove("animating");
+    board.style.transition = "none";
+    board.style.gridTemplateColumns = fr;
+    if (!focus) return;
+    const phases = [...board.querySelectorAll(":scope > .phase")];
+    const card = document.getElementById(`st-${focus}`);
+    const col = card && card.closest(".phase");
+    if (!col) return;
+    const max = Math.max(0, board.scrollWidth - board.clientWidth);
+    const target = Math.min(max, Math.max(0, col.offsetLeft + col.offsetWidth / 2 - board.clientWidth / 2));
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const stacked = matchMedia("(max-width: 760px)").matches;
+    if (reduce || stacked || !oldPx || oldPx.length !== phases.length) { board.scrollLeft = target; return; }
+    const newPx = phases.map(p => p.getBoundingClientRect().width);
+    const D = 420;
+    board.style.gridTemplateColumns = oldPx.map(w => `${w}px`).join(" ");
+    void board.offsetWidth;
+    board.classList.add("animating");
+    board.style.transition = `grid-template-columns ${D}ms cubic-bezier(.22,.8,.24,1)`;
+    board.style.gridTemplateColumns = newPx.map(w => `${w}px`).join(" ");
+    const start = board.scrollLeft, t0 = performance.now();
+    const ease = t => 1 - Math.pow(1 - t, 3);
+    const step = now => {
+      const k = Math.min(1, (now - t0) / D);
+      board.scrollLeft = start + (target - start) * ease(k);
+      if (k < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+    layoutTimer = setTimeout(() => {
+      board.style.transition = "none";
+      board.style.gridTemplateColumns = fr;
+      // settle on the exact centre of the final layout (clamped at the board's edges)
+      const m = Math.max(0, board.scrollWidth - board.clientWidth);
+      board.scrollLeft = Math.min(m, Math.max(0, col.offsetLeft + col.offsetWidth / 2 - board.clientWidth / 2));
+      board.classList.remove("animating");
+      drawFlows(); drawLinks();
+    }, D + 30);
   }
 
   // ---------- tree ----------
@@ -483,6 +534,8 @@
     const rows = [...state.pins].map(k => findRow(...k.split("|"))).filter(Boolean);
     if (hoverRow && document.body.contains(hoverRow) && !rows.includes(hoverRow)) rows.push(hoverRow);
     document.querySelectorAll("li[data-link]").forEach(li => li.classList.toggle("pinned", state.pins.has(rowKey(li))));
+    // shrink first so a stale, taller overlay never inflates the board's scroll size
+    svg.setAttribute("width", 0); svg.setAttribute("height", 0);
     const W = board.scrollWidth, H = board.scrollHeight;
     svg.setAttribute("width", W); svg.setAttribute("height", H); svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
     const br = board.getBoundingClientRect();
@@ -523,7 +576,7 @@
         // the other end: matching file row when that stage is open, else its card
         const other = (card.classList.contains("open") && findRow(slug, inbound ? "out" : "in", art)) || card;
         const [S, T] = inbound ? [endpoint(other), endpoint(li)] : [endpoint(li), endpoint(other)];
-        const off = 5 + (lane++ % 5) * 2.5;
+        const off = 4 + (lane++ % 5) * 2.4; // stays inside the 16px board gutter and 18px column gap
         let pts;
         if (T.host.l >= S.host.r) pts = [{ x: S.r, y: S.y }, { x: S.host.r + off, y: S.y }, { x: S.host.r + off, y: T.y }, { x: T.l, y: T.y }];
         else if (T.host.r <= S.host.l) pts = [{ x: S.l, y: S.y }, { x: S.host.l - off, y: S.y }, { x: S.host.l - off, y: T.y }, { x: T.r, y: T.y }];
@@ -594,10 +647,13 @@
     const s = stageBy[slug];
     if (!s || !inScope(s)) return;
     state.open.add(slug);
+    state.focus = slug;
     render();
     const el = document.getElementById(`st-${slug}`);
     if (!el) return;
-    el.scrollIntoView({ behavior: "smooth", block: "start", inline: "center" });
+    // horizontal centring is handled by layoutColumns; only scroll the page vertically here
+    const top = el.getBoundingClientRect().top + scrollY - 72;
+    scrollTo({ top, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
     el.classList.remove("flash"); void el.offsetWidth; el.classList.add("flash");
   }
   document.addEventListener("click", e => {
@@ -606,7 +662,7 @@
     if (t.dataset.go) { e.stopPropagation(); return go(t.dataset.go); }
     if (t.dataset.scope) return setScope(t.dataset.scope);
     if (t.hasAttribute("data-toggle-skipped")) { state.showSkipped = !state.showSkipped; store.set("aidlc.showSkipped", state.showSkipped ? "1" : "0"); return render(); }
-    if (t.dataset.toggle) { const k = t.dataset.toggle; state.open.has(k) ? state.open.delete(k) : state.open.add(k); return render(); }
+    if (t.dataset.toggle) { const k = t.dataset.toggle; state.open.has(k) ? state.open.delete(k) : state.open.add(k); state.focus = k; return render(); }
     if (t.dataset.sel) { const [slug, k] = t.dataset.sel.split("|"); state.sel[slug] = state.sel[slug] === k ? undefined : k; return render(); }
     if (t.dataset.link) { const k = rowKey(t); state.pins.has(k) ? state.pins.delete(k) : state.pins.add(k); return drawLinks(); }
     if (t.dataset.dir) { const k = t.dataset.dir; state.toggledDirs.has(k) ? state.toggledDirs.delete(k) : state.toggledDirs.add(k); return renderTree(); }
@@ -668,6 +724,8 @@
     if (li && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); li.click(); }
   });
 
+  // a stage opened from the URL is centred like one opened by a click
+  state.focus = [...state.open].pop() || null;
   render();
   setView();
 })();
