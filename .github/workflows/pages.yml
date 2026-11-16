@@ -31,6 +31,14 @@ jobs:
           cp index.html style.css app.js aidlc-data.js commands.js _site/
           touch _site/.nojekyll
 
+      # Pages lets browsers cache files for 10 minutes. Stamping each deploy's commit onto the
+      # asset links gives them new URLs, so visitors never mix a new page with old scripts.
+      - name: Cache-bust asset links
+        run: |
+          v="${GITHUB_SHA::8}"
+          sed -i -E "s#(href|src)=\"(style\.css|app\.js|aidlc-data\.js|commands\.js)\"#\1=\"\2?v=${v}\"#g" _site/index.html
+          grep -E '\?v=' _site/index.html
+
       - uses: actions/configure-pages@v5
 
       - uses: actions/upload-pages-artifact@v3
